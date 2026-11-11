@@ -1,5 +1,4 @@
 name: build_windows
-
 on:
   push:
     branches: ["main"]
