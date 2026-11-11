@@ -356,7 +356,7 @@ static bool_t i_prompt_password(App *app, const char_t *message)
     label_multiline(error, TRUE);
 
     edit_passmode(edit, TRUE);
-    edit_min_width(edit, 340);
+    edit_width(edit, 340);
 
     button_text(ok, "Unlock");
     button_text(cancel, "Cancel");
@@ -468,7 +468,7 @@ static void i_load_vault(App *app, const char_t *path)
 static void i_open_dialog(App *app)
 {
     const char_t *types[] = {"json"};
-    const char_t *file = comwin_open_file(app->window, types, 1, NULL);
+    const char_t *file = comwin_open_file(app->window, "Open Aegis export", types, 1, NULL, NULL);
 
     if (file != NULL)
     {
@@ -585,7 +585,7 @@ App *aegis_create(void)
     Button *next = button_push();
     Label *filter_label = label_create();
 
-    app->window = window_create(ekWINDOW_STDRES);
+    app->window = window_create(ekWINDOW_STD);
     app->panel = panel_create();
     app->table = tableview_create();
     app->filter = edit_create();
@@ -595,21 +595,20 @@ App *aegis_create(void)
 
     window_title(app->window, "Aegis Desktop");
     window_origin(app->window, v2df(180, 140));
-    window_size(app->window, s2df(780, 560));
     window_OnClose(app->window, listener(app, i_OnClose, App));
 
     button_text(open, "Open export...");
-    button_min_width(open, 120);
+    button_width(open, 120);
     button_OnClick(open, listener(app, i_OnOpen, App));
 
     button_text(next, "Next HOTP");
-    button_min_width(next, 110);
+    button_width(next, 110);
     button_tooltip(next, "Advance the HOTP counter and copy the new code (Cmd+N)");
     button_OnClick(next, listener(app, i_OnNext, App));
 
     label_text(filter_label, "Filter:");
     edit_phtext(app->filter, "Issuer or account");
-    edit_min_width(app->filter, 220);
+    edit_width(app->filter, 220);
     edit_OnChange(app->filter, listener(app, i_OnFilterChange, App));
 
     tableview_OnData(app->table, listener(app, i_OnTableData, App));
@@ -620,23 +619,23 @@ App *aegis_create(void)
     tableview_header_clickable(app->table, FALSE);
     tableview_multisel(app->table, FALSE, FALSE);
 
-    tableview_new_column_text(app->table);
+    tableview_add_column_text(app->table);
     tableview_header_title(app->table, 0, "Issuer");
     tableview_column_width(app->table, 0, 180);
     tableview_column_limits(app->table, 0, 60, 400);
 
-    tableview_new_column_text(app->table);
+    tableview_add_column_text(app->table);
     tableview_header_title(app->table, 1, "Account");
     tableview_column_width(app->table, 1, 280);
     tableview_column_limits(app->table, 1, 80, 600);
 
-    tableview_new_column_text(app->table);
+    tableview_add_column_text(app->table);
     tableview_header_title(app->table, 2, "Code");
     tableview_header_align(app->table, 2, ekCENTER);
     tableview_column_width(app->table, 2, 170);
     tableview_column_limits(app->table, 2, 90, 300);
 
-    tableview_new_column_text(app->table);
+    tableview_add_column_text(app->table);
     tableview_header_title(app->table, 3, "Left");
     tableview_header_align(app->table, 3, ekCENTER);
     tableview_column_width(app->table, 3, 60);
@@ -665,6 +664,7 @@ App *aegis_create(void)
 
     panel_layout(app->panel, layout);
     window_panel(app->window, app->panel);
+    window_client_size(app->window, s2df(780, 760));
 
     window_hotkey(app->window, ekKEY_O, ekMKEY_COMMAND, listener(app, i_OnOpen, App));
     window_hotkey(app->window, ekKEY_F, ekMKEY_COMMAND, listener(app, i_OnFilterHotkey, App));
@@ -672,7 +672,6 @@ App *aegis_create(void)
     window_hotkey(app->window, ekKEY_N, ekMKEY_COMMAND, listener(app, i_OnNext, App));
 
     window_show(app->window);
-    window_focus(app->window, guicontrol(app->filter));
 
     return app;
 }
