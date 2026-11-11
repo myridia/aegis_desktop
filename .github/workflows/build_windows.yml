@@ -16,7 +16,7 @@ permissions:
 
 jobs:
   build_windows:
-    if: github.repository_owner == 'veto8'
+    if: github.repository_owner == 'myridia'
     runs-on: windows-latest
     steps:
       - name: install openssl
