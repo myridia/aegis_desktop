@@ -6,9 +6,10 @@ show_menu() {
   printf "%s\n" '  ┌─────┬──────────────────────────────────────────────┐'
   printf "%s\n" '  │  ID │ Description                                  │'
   printf "%s\n" '  ├─────┼──────────────────────────────────────────────┤'
-  printf "%s\n" '  │  1  │ Install NAppGUI - macOS (/usr/local/nappgui) │'
-  printf "%s\n" '  │  2  │ Install OpenSSL 3 (brew install openssl@3)   │'
-  printf "%s\n" '  │  3  │ Build & run app (./run.sh)                   │'
+  printf "%s\n" '  │  1  │ Install NAppGUI - Windows (C:/nappgui)       │'
+  printf "%s\n" '  │  2  │ Install NAppGUI + OpenSSL - macOS            │'
+  printf "%s\n" '  │  3  │ Install NAppGUI - Linux (/usr/local/nappgui) │'
+  printf "%s\n" '  │  4  │ Build & run app (./build.sh)                 │'
   printf "%s\n" '  │  0  │ Exit                                         │'
   printf "%s\n" '  └─────┴──────────────────────────────────────────────┘'
 }
@@ -27,14 +28,17 @@ while true; do
   fi
 
   if [ "$task" = "1" ]; then
-    printf "  ...installing NAppGUI for macOS\n"
-    "$SCRIPT_DIR/ask.d/install_nappgui_macos.sh"
+    printf "  ...installing NAppGUI for Windows\n"
+    "$SCRIPT_DIR/ask.d/install_nappgui_windows.sh"
   elif [ "$task" = "2" ]; then
-    printf "  ...installing OpenSSL 3\n"
-    "$SCRIPT_DIR/ask.d/install_openssl_macos.sh"
+    printf "  ...installing NAppGUI and OpenSSL for macOS\n"
+    "$SCRIPT_DIR/ask.d/install_nappgui_macos.sh"
   elif [ "$task" = "3" ]; then
+    printf "  ...installing NAppGUI for Linux\n"
+    "$SCRIPT_DIR/ask.d/install_nappgui_linux.sh"
+  elif [ "$task" = "4" ]; then
     printf "  ...building and launching the app\n"
-    "$SCRIPT_DIR/ask.d/run.sh"
+    "$SCRIPT_DIR/ask.d/build.sh"
   else
     printf "  Unknown task: %s\n" "$task"
   fi

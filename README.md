@@ -25,28 +25,25 @@ Built with [NAppGUI](https://nappgui.com) (C, MIT) and OpenSSL 3 for the crypto.
 
 Requirements:
 
-- macOS with Xcode command line tools (tested on Intel / Ventura).
-- NAppGUI SDK installed at `/usr/local/nappgui` (x86_64).
-- OpenSSL 3 from Homebrew (`brew install openssl@3`).
+- macOS with Xcode command line tools, Linux (GTK3 dev), or Windows with Visual Studio + CMake.
+- NAppGUI SDK installed at `/usr/local/nappgui` (see `./ask.sh` — task 1 Windows / 2 macOS / 3 Linux).
+- OpenSSL 3 (macOS: `brew install openssl@3`; Linux: `sudo apt install libssl-dev`; Windows: install OpenSSL 3 for Windows, pass `-DOPENSSL_ROOT_DIR=...` if `find_package(OpenSSL)` misses it).
 
 ```bash
-cd /Users/veto/webs/old/aegis_desktop
-cmake -S . -B build -DCMAKE_BUILD_TYPE=Release
-cmake --build build --config Release
-open build/AegisDesktop.app
+./build.sh
 ```
+
+The result is `build/Release/bin/aegis_desktop.app` (macOS),
+`build/Release/bin/aegis_desktop` (Linux) or `build/Release/bin/aegis_desktop.exe`
+(Windows). `./build.sh` deletes `build/` first, then configures, builds and launches
+the app.
 
 If the SDK lives elsewhere, pass it explicitly:
 
 ```bash
 cmake -S . -B build \
-  -Dnappgui_DIR=/path/to/nappgui/cmake \
-  -DOPENSSL_ROOT_DIR="$(brew --prefix openssl@3)" \
-  -DDEPLOYMENT_TARGET_OSX=13.6
+  -Dnappgui_DIR=/path/to/nappgui/cmake
 ```
-
-The result is `build/AegisDesktop.app` (or `build/Release/AegisDesktop.app`
-with the Xcode generator).
 
 ## Getting a vault out of Aegis
 
@@ -76,10 +73,12 @@ with `Cmd+O`.
 ## Project layout
 
 ```
-src/main.c        NAppGUI entry point (osmain_sync 0.25 s ticker)
-src/gui.c/.h      window, toolbar, table, filter, unlock flow, hotkeys
-src/clipboard.m   macOS NSPasteboard shim
-src/vault.c/.h    Aegis JSON loading + scrypt/AES-256-GCM decryption
+src/main.c           NAppGUI entry point (osmain_sync 0.25 s ticker)
+src/gui.c/.h         window, toolbar, table, filter, unlock flow, hotkeys
+src/osx/clipboard.m  macOS NSPasteboard shim
+src/gtk/clipboard.c  Linux (GTK3) clipboard shim
+src/win/clipboard.c  Windows clipboard shim
+src/vault.c/.h       Aegis JSON loading + scrypt/AES-256-GCM decryption
 src/otp.c/.h      HMAC-SHA1/256/512, RFC 4226/6238, Steam alphabet
 src/json.c/.h     minimal JSON DOM parser
 src/util.c/.h     base64/base32/hex decoders, secure wipe

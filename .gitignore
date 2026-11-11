@@ -54,3 +54,6 @@ dkms.conf
 
 # debug information files
 *.dwo
+
+# Local NAppGUI checkout cloned by ask.sh tasks
+nappgui_src/
