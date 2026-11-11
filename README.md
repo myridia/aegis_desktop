@@ -2,9 +2,9 @@
 
 # Aegis Desktop
 
-A small, read-only macOS viewer for [Aegis Authenticator](https://github.com/beemdevelopment/Aegis)
-exports. It shows TOTP, HOTP and Steam codes, copies them to the clipboard and
-never writes to the vault.
+A small, read-only desktop viewer for [Aegis Authenticator](https://github.com/beemdevelopment/Aegis)
+exports — macOS, Linux and Windows. It shows TOTP, HOTP and Steam codes, copies them to the
+clipboard and never writes to the vault.
 
 Built with [NAppGUI](https://nappgui.com) (C, MIT) and OpenSSL 3 for the crypto.
 
@@ -17,9 +17,9 @@ Built with [NAppGUI](https://nappgui.com) (C, MIT) and OpenSSL 3 for the crypto.
 - Live search filter by issuer/account.
 - Remembers the last successfully opened export (`~/.config/aegis_desktop/last_export`,
   `%APPDATA%\Aegis Desktop\last_export` on Windows) and reopens it automatically on the next start.
-- Click a row to copy its current code. `Cmd+N` advances and copies the next
-  HOTP counter value.
-- `Cmd+O` open, `Cmd+F` filter box, `Cmd+C` copy the selected row.
+- Click a row to copy its current code. `Cmd/Win+N` (⌘N on macOS, Win/Super+N on
+  Windows/Linux) advances and copies the next HOTP counter value.
+- `Cmd/Win+O` open, `Cmd/Win+F` filter box, `Cmd/Win+C` copy the selected row.
 - Codes refresh automatically once per second; the `Left` column counts down
   the current time step.
 
@@ -47,11 +47,17 @@ cmake -S . -B build \
   -Dnappgui_DIR=/path/to/nappgui/cmake
 ```
 
+### CI
+
+Pushing a tag builds all three platforms via `.github/workflows/`
+(`build_linux.yml`, `build_mac.yml`, `build_windows.yml`) and attaches the binary,
+`.dmg` and `.exe` to the GitHub release.
+
 ## Getting a vault out of Aegis
 
 On the phone: **Settings → Import & Export → Export** (plain or encrypted).
-Copy the resulting `.json` file to the Mac (AirDrop, USB, etc.) and open it
-with `Cmd+O`.
+Copy the resulting `.json` file to your computer (AirDrop, USB, scp, …) and open it
+with `Cmd/Win+O`.
 
 ## Security model
 
@@ -75,20 +81,22 @@ with `Cmd+O`.
 ## Project layout
 
 ```
+build.sh             configure + build + launch (deletes build/ first)
+ask.sh               task switch: 1 Windows / 2 macOS / 3 Linux NAppGUI install, 4 build & run
 src/main.c           NAppGUI entry point (osmain_sync 0.25 s ticker)
-src/gui.c/.h         window, toolbar, table, filter, unlock flow, hotkeys
+src/gui.c/.h         window, toolbar, table, filter, unlock flow, hotkeys, last-export reopen
 src/osx/clipboard.m  macOS NSPasteboard shim
 src/gtk/clipboard.c  Linux (GTK3) clipboard shim
 src/win/clipboard.c  Windows clipboard shim
+src/res/             NAppGUI template icons (replace with your own artwork if you like)
+src/Info.plist       static macOS bundle plist
 src/vault.c/.h       Aegis JSON loading + scrypt/AES-256-GCM decryption
-src/otp.c/.h      HMAC-SHA1/256/512, RFC 4226/6238, Steam alphabet
-src/json.c/.h     minimal JSON DOM parser
-src/util.c/.h     base64/base32/hex decoders, secure wipe
+src/otp.c/.h         HMAC-SHA1/256/512, RFC 4226/6238, Steam alphabet
+src/json.c/.h        minimal JSON DOM parser
+src/util.c/.h        base64/base32/hex decoders, secure wipe
 ```
 
 ## Notes
 
 - HOTP counter increments happen in memory only; the export on disk is never
   updated. Re-open the export to start again from the file's counters.
-- If signing/paths change, adjust `DEPLOYMENT_TARGET_OSX` to match the
-  NAppGUI SDK build (`/usr/local/nappgui/cmake/NAppGUIOptions.txt`).
