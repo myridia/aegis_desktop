@@ -16,7 +16,7 @@ permissions:
 
 jobs:
   build:
-    if: github.repository_owner == 'veto8'
+    if: github.repository_owner == 'myridiaX'
     runs-on: ubuntu-22.04
     steps:
       - name: install dependencies
