@@ -15,6 +15,8 @@ Built with [NAppGUI](https://nappgui.com) (C, MIT) and OpenSSL 3 for the crypto.
 - Supports TOTP (SHA1/SHA256/SHA512, 4-10 digits, custom period), HOTP and
   Steam Guard codes.
 - Live search filter by issuer/account.
+- Remembers the last successfully opened export (`~/.config/aegis_desktop/last_export`,
+  `%APPDATA%\Aegis Desktop\last_export` on Windows) and reopens it automatically on the next start.
 - Click a row to copy its current code. `Cmd+N` advances and copies the next
   HOTP counter value.
 - `Cmd+O` open, `Cmd+F` filter box, `Cmd+C` copy the selected row.

@@ -1,0 +1,53 @@
+name: build_mac
+
+on:
+  push:
+    branches: ["main"]
+    tags:
+      - '*'
+  # Allows you to run this workflow manually from the Actions tab
+  workflow_dispatch:
+
+permissions:
+  contents: write
+  pull-requests: write
+  issues: read
+  packages: none
+
+jobs:
+  build_macos_intel:
+    if: github.repository_owner == 'myridia'
+    runs-on: macos-15
+    steps:
+       - name: install dependencies
+         run: brew install openssl@3
+
+       - name: install nappgui
+         run: |
+          git clone --depth 1 https://github.com/frang75/nappgui_src.git
+          cd nappgui_src
+          cmake --version
+          cmake -G Xcode -S . -B build -DNAPPGUI_DEMO=NO
+          cmake --build build --config Release -j 4
+          sudo cmake --install build --config Release --prefix /usr/local/nappgui
+
+       - name: Checkout repository
+         uses: actions/checkout@v4
+
+       - name: build aegis_desktop
+         run: |
+           cmake -G Xcode -S . -B build -DCMAKE_INSTALL_PREFIX=/usr/local/nappgui -DCMAKE_POLICY_VERSION_MINIMUM=3.5 -DOPENSSL_ROOT_DIR="$(brew --prefix openssl@3)"
+           cmake --build build --config Release
+           ls build/Release/bin/
+           ls build/Release/bin/aegis_desktop.app
+           cd build/Release/bin/
+           hdiutil create -volname "aegis_desktop" -srcfolder "aegis_desktop.app" -ov -format UDZO "aegis_desktop.dmg"
+
+       - name: Upload Macos binary to release
+         uses: svenstaro/upload-release-action@v2
+         with:
+          repo_token: ${{ secrets.GITHUB_TOKEN }}
+          file: 'build/Release/bin/aegis_desktop.dmg'
+          tag: ${{ github.ref }}
+          overwrite: true
+          file_glob: true

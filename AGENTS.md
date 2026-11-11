@@ -19,7 +19,7 @@ binary elsewhere). The agent never compiles, builds, or runs anything.
 
 ## Layout
 - `src/main.c` — entry point (`osmain_sync` 0.25 s ticker)
-- `src/gui.c/.h` — window, toolbar, table, filter, unlock flow, hotkeys
+- `src/gui.c/.h` — window, toolbar, table, filter, unlock flow, hotkeys; remembers the last opened export (`~/.config/aegis_desktop/last_export` on POSIX, `%APPDATA%\Aegis Desktop\last_export` on Windows, file mode 0600) and reopens it on startup
 - `src/osx/clipboard.m` — macOS NSPasteboard shim (Darwin-only subdir)
 - `src/gtk/clipboard.c` — Linux clipboard shim (GTK3; NAppGUI/Linux is GTK-based, `src/gtk/` wires the GTK include dirs)
 - `src/win/clipboard.c` — Windows clipboard shim (Win32 CF_UNICODETEXT)
@@ -33,7 +33,8 @@ binary elsewhere). The agent never compiles, builds, or runs anything.
 - `ask.sh` — task switch; tasks live in `ask.d/` (1 Windows / 2 macOS / 3 Linux NAppGUI install, 4 build & run)
 - `ask.d/install_nappgui_macos.sh` — task 2: install NAppGUI (Xcode) + `brew install openssl@3`
 - `ask.d/install_nappgui_linux.sh` — task 3: apt-installs `libgtk-3-dev`/`pkg-config`/`libssl-dev` if missing, then NAppGUI Release, `sudo` install
-- `run.sh` — unused leftover, superseded by `build.sh` (kept; delete at user's discretion)
+- `ask.d/run.sh` — legacy unused wrapper, superseded by `build.sh` (kept)
+- `.github/workflows/build_linux.yml` / `build_mac.yml` / `build_windows.yml` — CI builds, upload the binary/dmg/exe to the release on tag push (`myridia/aegis_desktop`)
 
 ## Conventions / security model
 - The vault file is opened read-only (`fopen(..., "rb")`); never written, renamed, or modified.

@@ -12,6 +12,12 @@
 #include <stdlib.h>
 #include <string.h>
 #include <time.h>
+#if defined(_WIN32)
+#include <windows.h>
+#else
+#include <sys/stat.h>
+#include <sys/types.h>
+#endif
 
 #define PASSWORD_MAX 256
 #define PATH_MAX_LEN 1024
@@ -393,6 +399,74 @@ static bool_t i_prompt_password(App *app, const char_t *message)
 
 /*---------------------------------------------------------------------------*/
 
+static bool_t i_config_file(char *out, const size_t size)
+{
+    const char *base;
+    char dir[1024];
+
+#if defined(_WIN32)
+    base = getenv("APPDATA");
+    if (base == NULL || base[0] == '\0')
+        base = getenv("USERPROFILE");
+    if (base == NULL || base[0] == '\0')
+        return FALSE;
+    bstd_sprintf(dir, sizeof(dir), "%s\\Aegis Desktop", base);
+    CreateDirectoryA(dir, NULL);
+    bstd_sprintf(out, (uint32_t)size, "%s\\last_export", dir);
+#else
+    const char *home = getenv("HOME");
+    char parent[1024];
+    if (home == NULL || home[0] == '\0')
+        return FALSE;
+    bstd_sprintf(parent, sizeof(parent), "%s/.config", home);
+    mkdir(parent, 0700);
+    bstd_sprintf(dir, sizeof(dir), "%s/.config/aegis_desktop", home);
+    mkdir(dir, 0700);
+    bstd_sprintf(out, (uint32_t)size, "%s/last_export", dir);
+#endif
+    return TRUE;
+}
+
+static void i_save_last_path(const char_t *path)
+{
+    char file[1200];
+    FILE *f;
+
+    if (i_config_file(file, sizeof(file)) == FALSE)
+        return;
+
+    f = fopen(file, "wb");
+    if (f == NULL)
+        return;
+
+    fwrite(path, 1, strlen(path), f);
+    fclose(f);
+#if !defined(_WIN32)
+    chmod(file, 0600);
+#endif
+}
+
+static bool_t i_read_last_path(char *out, const size_t size)
+{
+    char file[1200];
+    FILE *f;
+    size_t n;
+
+    if (i_config_file(file, sizeof(file)) == FALSE)
+        return FALSE;
+
+    f = fopen(file, "rb");
+    if (f == NULL)
+        return FALSE;
+
+    n = fread(out, 1, size - 1, f);
+    fclose(f);
+    while (n > 0 && (out[n - 1] == '\n' || out[n - 1] == '\r'))
+        n -= 1;
+    out[n] = '\0';
+    return n > 0;
+}
+
 static void i_load_vault(App *app, const char_t *path)
 {
     char_t error[256];
@@ -441,6 +515,7 @@ static void i_load_vault(App *app, const char_t *path)
         vault_free(&app->vault);
         app->vault = vault;
         bstd_sprintf(app->path, sizeof(app->path), "%s", path);
+        i_save_last_path(path);
     }
 
     i_rebuild_rows(app);
@@ -672,6 +747,12 @@ App *aegis_create(void)
     window_hotkey(app->window, ekKEY_N, ekMKEY_COMMAND, listener(app, i_OnNext, App));
 
     window_show(app->window);
+
+    {
+        char saved[PATH_MAX_LEN];
+        if (i_read_last_path(saved, sizeof(saved)) == TRUE)
+            i_load_vault(app, saved);
+    }
 
     return app;
 }
