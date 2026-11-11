@@ -1,3 +1,5 @@
+<img src="aegis_desktop.svg" alt="Aegis Desktop logo" width="120">
+
 # Aegis Desktop
 
 A small, read-only macOS viewer for [Aegis Authenticator](https://github.com/beemdevelopment/Aegis)
