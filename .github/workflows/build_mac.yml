@@ -16,7 +16,7 @@ permissions:
 
 jobs:
   build_macos_intel:
-    if: github.repository_owner == 'veto8'
+    if: github.repository_owner == 'myridia'
     runs-on: macos-15
     steps:
        - name: install dependencies
