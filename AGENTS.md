@@ -24,6 +24,10 @@ The agent never compiles, builds, or runs anything. Target is macOS
 - `src/otp.c/.h` — HMAC-SHA1/256/512, RFC 4226/6238, Steam alphabet
 - `src/json.c/.h` — minimal JSON DOM parser
 - `src/util.c/.h` — base64/base32/hex decoders, `secure_wipe`
+- `ask.sh` — task switch; tasks live in `ask.d/`
+- `ask.d/install_nappgui_macos.sh` — task 1: clone `nappgui_src` (if missing), build, install to `/usr/local/nappgui`
+- `ask.d/install_openssl_macos.sh` — task 2: `brew install openssl@3`
+- `ask.d/run.sh` — task 3: runs `./run.sh` (configure, build, open the app)
 
 ## Conventions / security model
 - The vault file is opened read-only (`fopen(..., "rb")`); never written, renamed, or modified.
