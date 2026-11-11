@@ -6,7 +6,12 @@
 
 #include <stdio.h>
 #include <string.h>
+
+#if defined(_WIN32)
+#define strcasecmp(a, b) _stricmp((a), (b))
+#else
 #include <strings.h>
+#endif
 
 #define OTP_MAX_DIGITS 10
 #define OTP_MAX_HASH 64
