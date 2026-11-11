@@ -9,7 +9,12 @@
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
+
+#if defined(_WIN32)
+#define strcasecmp(a, b) _stricmp((a), (b))
+#else
 #include <strings.h>
+#endif
 
 #define MAX_FILE_SIZE (64u * 1024u * 1024u)
 #define MAX_ENTRIES 20000u
