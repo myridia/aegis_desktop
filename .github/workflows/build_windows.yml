@@ -1,0 +1,49 @@
+name: build_windows
+
+on:
+  push:
+    branches: ["main"]
+    tags:
+      - '*'
+  # Allows you to run this workflow manually from the Actions tab
+  workflow_dispatch:
+
+permissions:
+  contents: write
+  pull-requests: write
+  issues: read
+  packages: none
+
+jobs:
+  build_windows:
+    if: github.repository_owner == 'myridia'
+    runs-on: windows-latest
+    steps:
+      - name: install openssl
+        run: choco install openssl -y --no-progress
+
+      - name: install nappgui
+        run: |
+          git clone --depth 1 https://github.com/frang75/nappgui_src.git
+          cd nappgui_src
+          cmake -S . -B build -DNAPPGUI_DEMO=NO
+          cmake --build build --config Release -j 4
+          cmake --install build --config Release --prefix C:/nappgui
+
+      - name: checkout
+        uses: actions/checkout@v4
+
+      - name: build aegis_desktop
+        run: |
+          cmake -S . -B build -DCMAKE_INSTALL_PREFIX=C:/nappgui -DOPENSSL_ROOT_DIR="C:/Program Files/OpenSSL-Win64"
+          cmake --build build --config Release
+          ls build/Release/bin
+
+      - name: Upload release
+        uses: svenstaro/upload-release-action@v2
+        with:
+          repo_token: ${{ secrets.GITHUB_TOKEN }}
+          file: 'build/Release/bin/aegis_desktop.exe'
+          tag: ${{ github.ref }}
+          overwrite: true
+          file_glob: true
