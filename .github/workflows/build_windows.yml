@@ -19,7 +19,7 @@ jobs:
     runs-on: windows-latest
     steps:
       - name: install openssl
-        run: vcpkg install openssl:x64-windows-static-md
+        run: vcpkg install openssl:x64-windows-static
 
       - name: install nappgui
         run: |
@@ -34,7 +34,7 @@ jobs:
 
       - name: build aegis_desktop
         run: |
-          cmake -S . -B build -DCMAKE_INSTALL_PREFIX=C:/nappgui -DVCPKG_TARGET_TRIPLET=x64-windows-static-md -DCMAKE_TOOLCHAIN_FILE=C:/vcpkg/scripts/buildsystems/vcpkg.cmake
+          cmake -S . -B build -DCMAKE_INSTALL_PREFIX=C:/nappgui -DVCPKG_TARGET_TRIPLET=x64-windows-static -DCMAKE_TOOLCHAIN_FILE=C:/vcpkg/scripts/buildsystems/vcpkg.cmake
           cmake --build build --config Release
           ls build/Release/bin
 

@@ -29,7 +29,7 @@ Requirements:
 
 - macOS with Xcode command line tools, Linux (GTK3 dev), or Windows with Visual Studio + CMake.
 - NAppGUI SDK installed at `/usr/local/nappgui` (see `./ask.sh` — task 1 Windows / 2 macOS / 3 Linux).
-- OpenSSL 3 (macOS: `brew install openssl@3`; Linux: `sudo apt install libssl-dev`; Windows: via vcpkg with the static triplet (`x64-windows-static-md` — CI used this to ship a self-contained exe))
+- OpenSSL 3 (macOS: `brew install openssl@3`; Linux: `sudo apt install libssl-dev`; Windows: via vcpkg with the static triplet `x64-windows-static` (static libs + static CRT, matches NAppGUI — ships a self-contained exe))
 
 ```bash
 ./build.sh
