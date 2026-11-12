@@ -33,8 +33,8 @@ binary elsewhere). The agent never compiles, builds, or runs anything.
 - `ask.sh` — task switch; tasks live in `ask.d/` (1 Windows / 2 macOS / 3 Linux NAppGUI install, 4 build & run)
 - `ask.d/install_nappgui_macos.sh` — task 2: install NAppGUI (Xcode) + `brew install openssl@3`
 - `ask.d/install_nappgui_linux.sh` — task 3: apt-installs `libgtk-3-dev`/`pkg-config`/`libssl-dev` if missing, then NAppGUI Release, `sudo` install
-- `ask.d/run.sh` — legacy unused wrapper, superseded by `build.sh` (kept)
-- `.github/workflows/build_linux.yml` / `build_mac.yml` / `build_windows.yml` — CI builds, upload the binary/dmg/exe to the release on tag push (`myridia/aegis_desktop`)
+- `ask.d/build.sh` — task 4: runs `./build.sh` (configure, build, launch the app)
+- `.github/workflows/build_linux.yml` / `build_mac.yml` / `build_windows.yml` — CI builds, upload the binary/dmg/exe to the release on tag push (`veto8/aegis_desktop`)
 
 ## Conventions / security model
 - The vault file is opened read-only (`fopen(..., "rb")`); never written, renamed, or modified.
