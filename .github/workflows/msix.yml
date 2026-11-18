@@ -1,0 +1,111 @@
+name: Msix
+
+on:
+  workflow_dispatch:
+  workflow_call:
+
+permissions:
+  contents: write
+  pull-requests: write
+  issues: read
+  packages: none
+
+jobs:
+  build-msix:
+    runs-on: windows-latest
+    if: github.repository_owner == 'myridia'
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Dependencies
+        run: |
+           winget install microsoft.winappcli --source winget
+
+      - name: Download_exe
+        run: |
+         curl -L "https://github.com/myridia/aegis_desktop/releases/download/main/aegis_desktop.exe" -o "./aegis_desktop.exe"
+
+      - name: Certificate
+        run: |
+          $pass = ConvertTo-SecureString "passpass" -AsPlainText -Force
+          $loc = "Cert:\CurrentUser\My"
+
+          $cert = New-SelfSignedCertificate -Subject "CN=Myridia" -CertStoreLocation $loc -KeyExportPolicy Exportable -KeyUsage CertSign,CrlSign -FriendlyName "Myridia Root CA"
+          if ($cert) {
+            $certp = "Cert:\CurrentUser\My\$($cert.Thumbprint)"
+            Export-PfxCertificate  -cert $certp  -FilePath ".\Myridia.pfx" -Password $pass -Force
+            Export-Certificate -Cert "Cert:\CurrentUser\My\$($cert.Thumbprint)" -FilePath ".\Myridia.cer" -Force
+            certutil -addstore Root ".\Myridia.cer"
+
+          } else {
+            Write-Error "Certificate generation failed."
+          }
+
+          $caCert = Get-ChildItem -Path $loc | Where-Object { $_.Subject -eq "CN=Myridia" }
+          $cert = New-SelfSignedCertificate  -Signer $caCert -Subject "CN=AegisDesktop" -CertStoreLocation $loc -KeyExportPolicy Exportable -KeyUsage DigitalSignature -FriendlyName "Aegis Desktop Certificate" -Type CodeSigningCert
+          if ($cert) {
+            $certp = "Cert:\CurrentUser\My\$($cert.Thumbprint)"
+            Export-PfxCertificate  -cert $certp  -FilePath ".\AegisDesktop.pfx" -Password $pass -Force
+            Export-Certificate -Cert "Cert:\CurrentUser\My\$($cert.Thumbprint)" -FilePath ".\AegisDesktop.cer" -Force
+            certutil -addstore Root ".\Myridia.cer"
+          } else {
+            Write-Error "Certificate generation failed."
+          }
+
+      - name: Sign
+        run: |
+          dir
+          $cert2 = New-Object System.Security.Cryptography.X509Certificates.X509Certificate2(".\AegisDesktop.pfx", "passpass")
+          Set-AuthenticodeSignature -FilePath ".\aegis_desktop.exe" -Certificate $cert2
+
+      - name: Packing
+        run: |
+          dir
+          mkdir app
+          cp aegis_desktop.exe app\
+          cd app
+          winapp manifest generate --executable .\aegis_desktop.exe --package-name "AegisDesktop" --publisher-name "AegisDesktop"
+          winapp pack . --cert "..\AegisDesktop.pfx" --cert-password "passpass" --output "aegis_desktop.msix" --name "AegisDesktop"
+          dir
+
+      - name: Release
+        uses: svenstaro/upload-release-action@v2
+        with:
+          repo_token: ${{ secrets.GITHUB_TOKEN }}
+          file: |
+            app/aegis_desktop.msix
+          tag: ${{ github.ref }}
+          overwrite: true
+          file_glob: true
+
+      - name: Release_cert
+        uses: svenstaro/upload-release-action@v2
+        with:
+          repo_token: ${{ secrets.GITHUB_TOKEN }}
+          file: |
+            Myridia.cer
+          tag: ${{ github.ref }}
+          overwrite: true
+          file_glob: true
+
+      - name: Release_cert2
+        uses: svenstaro/upload-release-action@v2
+        with:
+          repo_token: ${{ secrets.GITHUB_TOKEN }}
+          file: |
+            AegisDesktop.cer
+          tag: ${{ github.ref }}
+          overwrite: true
+          file_glob: true
+
+      - name: Release_cert3
+        uses: svenstaro/upload-release-action@v2
+        with:
+          repo_token: ${{ secrets.GITHUB_TOKEN }}
+          file: |
+            AegisDesktop.pfx
+          tag: ${{ github.ref }}
+          overwrite: true
+          file_glob: true

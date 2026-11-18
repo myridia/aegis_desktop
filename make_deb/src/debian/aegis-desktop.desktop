@@ -1,0 +1,8 @@
+[Desktop Entry]
+Type=Application
+Name=Aegis Desktop
+Comment=Read-only viewer for Aegis Authenticator exports
+Exec=aegis_desktop
+Icon=aegis_desktop
+Terminal=false
+Categories=Utility;Security;

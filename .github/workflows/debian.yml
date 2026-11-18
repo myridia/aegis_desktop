@@ -1,0 +1,49 @@
+name: Debian
+
+on:
+  workflow_dispatch:
+  workflow_call:
+
+permissions:
+  contents: write
+  pull-requests: write
+  issues: read
+  packages: none
+
+jobs:
+  build:
+    if: github.repository_owner == 'myridia'
+    runs-on: ubuntu-22.04
+    steps:
+      - name: Dependencies
+        run: |
+          sudo apt-get update -y
+          sudo apt-get install -y build-essential cmake debhelper dh-make fakeroot tree pkg-config libgtk-3-dev libssl-dev
+
+      - name: Nappgui
+        run: |
+          git clone --depth 1 https://github.com/frang75/nappgui_src.git
+          cd nappgui_src
+          cmake -S . -B build -DNAPPGUI_DEMO=NO -DCMAKE_BUILD_TYPE=Release
+          cmake --build build -j 4
+          sudo cmake --install build --config Release --prefix /usr/local/nappgui
+
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Build
+        run: |
+          cd make_deb/src
+          dpkg-buildpackage -us -uc -b
+          cd ../../
+          tree
+
+      - name: Release
+        if: github.repository_owner == 'myridia'
+        uses: svenstaro/upload-release-action@v2
+        with:
+          repo_token: ${{ secrets.GITHUB_TOKEN }}
+          file: 'make_deb/aegis-desktop_1.0.0-1_amd64.deb'
+          tag: ${{ github.ref }}
+          overwrite: true
+          file_glob: true
