@@ -51,7 +51,7 @@ cmake -S . -B build \
 
 Pushes to `main` and tags run `.github/workflows/control.yml`, which dispatches the per-platform workflows
 (Linux, macOS arm64 + Intel, Windows, Debian package, signed MSIX — via manual dispatch you can pick a single target).
-Release assets upload on every run; the macOS `.dmg`s only on tag pushes.
+Release assets upload on every run.
 
 ## Getting a vault out of Aegis
 
