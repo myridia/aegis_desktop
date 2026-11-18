@@ -1,0 +1,59 @@
+name: Build Control
+on:
+  push:
+    branches: ["main"]
+    tags:
+      - '*'
+  workflow_dispatch:
+    inputs:
+      target:
+        description: "What to build"
+        required: true
+        default: all
+        type: choice
+        options:
+          - all
+          - linux
+          - mac
+          - mac_intel
+          - windows
+          - debian
+          - msix
+
+permissions:
+  contents: write
+  pull-requests: write
+  issues: read
+  packages: none
+
+jobs:
+  linux:
+    if: github.event_name == 'push' || inputs.target == 'all' || inputs.target == 'linux'
+    uses: ./.github/workflows/linux.yml
+    secrets: inherit
+
+  mac:
+    if: github.event_name == 'push' || inputs.target == 'all' || inputs.target == 'mac'
+    uses: ./.github/workflows/mac.yml
+    secrets: inherit
+
+  mac_intel:
+    if: github.event_name == 'push' || inputs.target == 'all' || inputs.target == 'mac_intel'
+    uses: ./.github/workflows/mac_intel.yml
+    secrets: inherit
+
+  windows:
+    if: github.event_name == 'push' || inputs.target == 'all' || inputs.target == 'windows'
+    uses: ./.github/workflows/windows.yml
+    secrets: inherit
+
+  debian:
+    if: github.event_name == 'push' || inputs.target == 'all' || inputs.target == 'debian'
+    uses: ./.github/workflows/debian.yml
+    secrets: inherit
+
+  msix:
+    needs: [windows]
+    if: always() && (github.event_name == 'push' || inputs.target == 'all' || inputs.target == 'msix')
+    uses: ./.github/workflows/msix.yml
+    secrets: inherit

@@ -49,9 +49,9 @@ cmake -S . -B build \
 
 ### CI
 
-Pushing a tag builds all three platforms via `.github/workflows/`
-(`build_linux.yml`, `build_mac.yml`, `build_windows.yml`) and attaches the binary,
-`.dmg` and `.exe` to the GitHub release.
+Pushes to `main` and tags run `.github/workflows/control.yml`, which dispatches the per-platform workflows
+(Linux, macOS arm64 + Intel, Windows, Debian package, signed MSIX — via manual dispatch you can pick a single target).
+Release assets upload on every run; the macOS `.dmg`s only on tag pushes.
 
 ## Getting a vault out of Aegis
 
