@@ -41,13 +41,14 @@ jobs:
            ls build/Release/bin/
            ls build/Release/bin/aegis_desktop.app
            cd build/Release/bin/
-           hdiutil create -volname "aegis_desktop" -srcfolder "aegis_desktop.app" -ov -format UDZO "aegis_desktop.dmg"
+           hdiutil create -volname "aegis_desktop" -srcfolder "aegis_desktop.app" -ov -format UDZO "aegis_desktop-arm64.dmg"
 
        - name: Release
+         if: startsWith(github.ref, 'refs/tags/')
          uses: svenstaro/upload-release-action@v2
          with:
           repo_token: ${{ secrets.GITHUB_TOKEN }}
-          file: 'build/Release/bin/aegis_desktop.dmg'
+          file: 'build/Release/bin/aegis_desktop-arm64.dmg'
           tag: ${{ github.ref }}
           overwrite: true
           file_glob: true
