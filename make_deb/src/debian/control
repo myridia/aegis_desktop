@@ -1,0 +1,24 @@
+Source: aegis-desktop
+Section: utils
+Priority: optional
+Maintainer: veto <info@myridia.com>
+Rules-Requires-Root: no
+Build-Depends:
+ debhelper-compat (= 13),
+ cmake,
+ build-essential,
+ pkg-config,
+ libgtk-3-dev,
+ libssl-dev,
+Standards-Version: 4.7.2
+Homepage: https://github.com/myridia/aegis_desktop
+
+Package: aegis-desktop
+Architecture: any
+Depends:
+ ${shlibs:Depends},
+ ${misc:Depends},
+Description: read-only desktop viewer for Aegis Authenticator exports
+ aegis_desktop shows TOTP, HOTP and Steam codes from Aegis Authenticator
+ JSON exports and copies them to the clipboard. The vault file is opened
+ read-only and is never modified.

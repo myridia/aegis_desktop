@@ -1,0 +1,3 @@
+build/Release/bin/aegis_desktop usr/bin/
+debian/aegis-desktop.desktop usr/share/applications/
+debian/aegis_desktop.svg usr/share/icons/hicolor/scalable/apps/

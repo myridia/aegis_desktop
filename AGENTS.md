@@ -34,7 +34,8 @@ binary elsewhere). The agent never compiles, builds, or runs anything.
 - `ask.d/install_nappgui_macos.sh` — task 2: install NAppGUI (Xcode) + `brew install openssl@3`
 - `ask.d/install_nappgui_linux.sh` — task 3: apt-installs `libgtk-3-dev`/`pkg-config`/`libssl-dev` if missing, then NAppGUI Release, `sudo` install
 - `ask.d/build.sh` — task 4: runs `./build.sh` (configure, build, launch the app)
-- `.github/workflows/build_linux.yml` / `build_mac.yml` / `build_windows.yml` — CI builds, upload the binary/dmg/exe to the release on tag push (`veto8/aegis_desktop`)
+- `make_deb/` — Debian packaging (`dpkg-buildpackage`), mirrors `ct`'s layout; `make_deb/src/` is symlinks to the project root (`CMakeLists.txt`, `src/`, `aegis_desktop.svg`)
+- `.github/workflows/control.yml` — the only push trigger (`main`/tags); dispatches `linux.yml`, `mac.yml`, `mac_intel.yml`, `windows.yml`, `debian.yml` (.deb via `make_deb/`) and `msix.yml` (.msix + self-signed certs released like `ct`; `needs` windows). The per-platform workflows are `workflow_call`/manual only; every workflow uploads its release asset on every run.
 
 ## Conventions / security model
 - The vault file is opened read-only (`fopen(..., "rb")`); never written, renamed, or modified.
