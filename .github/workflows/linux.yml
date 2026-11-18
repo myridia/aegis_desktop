@@ -1,4 +1,4 @@
-name: build_linux
+name: Linux
 
 on:
   push:
@@ -19,14 +19,14 @@ jobs:
     if: github.repository_owner == 'myridia'
     runs-on: ubuntu-22.04
     steps:
-      - name: install dependencies
+      - name: Dependencies
         run: |
           sudo apt-get update
           sudo apt-get install build-essential git cmake -y
           sudo apt-get install libgtk-3-dev libssl-dev -y
           sudo apt-get install mesa-common-dev libglu1-mesa-dev -y
 
-      - name: install nappgui
+      - name: Nappgui
         run: |
           git clone --depth 1 https://github.com/frang75/nappgui_src.git
           cd nappgui_src
@@ -34,15 +34,15 @@ jobs:
           cmake --build build -j 4
           sudo cmake --install build --config Release --prefix /usr/local/nappgui
 
-      - name: Checkout repository
+      - name: Checkout
         uses: actions/checkout@v4
 
-      - name: build aegis_desktop
+      - name: Build
         run: |
           cmake -S . -B build -DCMAKE_BUILD_TYPE=Release -DCMAKE_INSTALL_PREFIX=/usr/local/nappgui
           cmake --build build
 
-      - name: upload binary
+      - name: Release
         uses: svenstaro/upload-release-action@v2
         with:
           repo_token: ${{ secrets.GITHUB_TOKEN }}
