@@ -16,7 +16,7 @@ permissions:
 
 jobs:
   build:
-    if: github.repository_owner == 'myridiaX'
+    if: github.repository_owner == 'myridia'
     runs-on: ubuntu-22.04
     steps:
       - name: install dependencies
