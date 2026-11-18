@@ -5,15 +5,20 @@
 
 #include <openssl/evp.h>
 
+#include <stdarg.h>
 #include <stdint.h>
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
 
+#include <openssl/rand.h>
+
 #if defined(_WIN32)
 #define strcasecmp(a, b) _stricmp((a), (b))
 #else
 #include <strings.h>
+#include <sys/stat.h>
+#include <sys/types.h>
 #endif
 
 #define MAX_FILE_SIZE (64u * 1024u * 1024u)
@@ -543,7 +548,7 @@ cleanup:
 /*---------------------------------------------------------------------------*/
 
 int vault_load(const char *path, const char *password, vault_t *vault,
-               char *err, size_t errlen)
+               char *err, size_t errlen, int *encrypted)
 {
     vault_t result;
     char *text = NULL;
@@ -592,6 +597,8 @@ int vault_load(const char *path, const char *password, vault_t *vault,
     db = json_object_get(root, "db");
     if (json_type(db) == JSON_OBJECT)
     {
+        if (encrypted != NULL)
+            *encrypted = 0;
         if (i_parse_entries(db, &result, err, errlen) == 0)
             rc = VAULT_OK;
     }
@@ -604,6 +611,8 @@ int vault_load(const char *path, const char *password, vault_t *vault,
         }
         else
         {
+            if (encrypted != NULL)
+                *encrypted = 1;
             rc = i_decrypt(root, password, &result, err, errlen);
         }
     }
@@ -619,6 +628,460 @@ int vault_load(const char *path, const char *password, vault_t *vault,
     else
         vault_free(&result);
 
+    return rc;
+}
+
+/*---------------------------------------------------------------------------*/
+
+typedef struct
+{
+    char *data;
+    size_t len;
+    size_t cap;
+} i_buf_t;
+
+static int i_buf_reserve(i_buf_t *b, size_t extra)
+{
+    if (b->len + extra + 1 <= b->cap)
+        return 0;
+    {
+        size_t ncap = b->cap != 0 ? b->cap * 2 : 256;
+        char *p;
+
+        while (b->len + extra + 1 > ncap)
+            ncap *= 2;
+        p = (char *)realloc(b->data, ncap);
+        if (p == NULL)
+            return -1;
+        b->data = p;
+        b->cap = ncap;
+    }
+    return 0;
+}
+
+static int i_buf_write(i_buf_t *b, const char *s, size_t n)
+{
+    if (i_buf_reserve(b, n) != 0)
+        return -1;
+    memcpy(b->data + b->len, s, n);
+    b->len += n;
+    b->data[b->len] = '\0';
+    return 0;
+}
+
+static int i_buf_str(i_buf_t *b, const char *s)
+{
+    return i_buf_write(b, s, strlen(s));
+}
+
+static int i_buf_escaped(i_buf_t *b, const char *s)
+{
+    const char *p = s != NULL ? s : "";
+
+    while (*p != '\0')
+    {
+        unsigned char c = (unsigned char)*p;
+        char tmp[8];
+
+        if (c == '"' || c == '\\')
+        {
+            char esc[2];
+            esc[0] = '\\';
+            esc[1] = (char)c;
+            if (i_buf_write(b, esc, 2) != 0)
+                return -1;
+        }
+        else if (c == '\n')
+        {
+            if (i_buf_str(b, "\\n") != 0)
+                return -1;
+        }
+        else if (c == '\r')
+        {
+            if (i_buf_str(b, "\\r") != 0)
+                return -1;
+        }
+        else if (c == '\t')
+        {
+            if (i_buf_str(b, "\\t") != 0)
+                return -1;
+        }
+        else if (c < 0x20)
+        {
+            snprintf(tmp, sizeof(tmp), "\\u%04x", c);
+            if (i_buf_str(b, tmp) != 0)
+                return -1;
+        }
+        else
+        {
+            char one[2];
+            one[0] = (char)c;
+            one[1] = '\0';
+            if (i_buf_str(b, one) != 0)
+                return -1;
+        }
+        p += 1;
+    }
+    return 0;
+}
+
+static int i_buf_appendf(i_buf_t *b, const char *fmt, ...)
+{
+    char stack[256];
+    va_list ap;
+    int n;
+
+    va_start(ap, fmt);
+    n = vsnprintf(stack, sizeof(stack), fmt, ap);
+    va_end(ap);
+
+    if (n < 0)
+        return -1;
+
+    if ((size_t)n < sizeof(stack))
+    {
+        return i_buf_write(b, stack, (size_t)n);
+    }
+    else
+    {
+        char *heap = (char *)malloc((size_t)n + 1);
+        int rc;
+
+        if (heap == NULL)
+            return -1;
+        va_start(ap, fmt);
+        vsnprintf(heap, (size_t)n + 1, fmt, ap);
+        va_end(ap);
+        rc = i_buf_write(b, heap, (size_t)n);
+        free(heap);
+        return rc;
+    }
+}
+
+static void i_buf_free(i_buf_t *b)
+{
+    if (b->data != NULL)
+    {
+        secure_wipe(b->data, b->len);
+        free(b->data);
+    }
+    memset(b, 0, sizeof(*b));
+}
+
+/*---------------------------------------------------------------------------*/
+
+static int i_gcm_encrypt(const unsigned char *key, const unsigned char *nonce, size_t nonce_len,
+                         const unsigned char *plaintext, size_t plaintext_len,
+                         unsigned char *out, unsigned char tag[GCM_TAG_SIZE])
+{
+    EVP_CIPHER_CTX *ctx = NULL;
+    int len = 0;
+    int ok = 0;
+
+    ctx = EVP_CIPHER_CTX_new();
+    if (ctx == NULL)
+        return -1;
+
+    if (EVP_EncryptInit_ex(ctx, EVP_aes_256_gcm(), NULL, NULL, NULL) != 1)
+        goto cleanup;
+
+    if (EVP_CIPHER_CTX_ctrl(ctx, EVP_CTRL_GCM_SET_IVLEN, (int)nonce_len, NULL) != 1)
+        goto cleanup;
+
+    if (EVP_EncryptInit_ex(ctx, NULL, NULL, key, nonce) != 1)
+        goto cleanup;
+
+    if (plaintext_len > 0)
+    {
+        if (EVP_EncryptUpdate(ctx, out, &len, plaintext, (int)plaintext_len) != 1)
+            goto cleanup;
+    }
+
+    if (EVP_EncryptFinal_ex(ctx, out + plaintext_len, &len) != 1)
+        goto cleanup;
+
+    if (EVP_CIPHER_CTX_ctrl(ctx, EVP_CTRL_GCM_GET_TAG, GCM_TAG_SIZE, tag) != 1)
+        goto cleanup;
+
+    ok = 1;
+
+cleanup:
+    EVP_CIPHER_CTX_free(ctx);
+    return ok ? 0 : -1;
+}
+
+/*---------------------------------------------------------------------------*/
+
+static int i_entries_json(const vault_t *vault, i_buf_t *out)
+{
+    i_buf_t b = {0, 0, 0};
+    size_t i;
+
+    if (i_buf_str(&b, "{\"version\":1,\"entries\":[") != 0)
+        goto fail;
+
+    for (i = 0; i < vault->count; i += 1)
+    {
+        const otp_entry_t *entry = &vault->entries[i];
+        const char *type = entry->kind == OTP_HOTP ? "hotp" : entry->kind == OTP_STEAM ? "steam" : "totp";
+        unsigned char uuid_raw[16];
+        char uuid[33];
+        char b32[2048];
+
+        if (base32_encode(b32, sizeof(b32), entry->secret, entry->secret_len) != 0 ||
+            RAND_bytes(uuid_raw, sizeof(uuid_raw)) != 1)
+            goto fail;
+        hex_encode(uuid, uuid_raw, sizeof(uuid_raw));
+
+        if (i > 0 && i_buf_str(&b, ",") != 0)
+            goto fail;
+        if (i_buf_appendf(&b, "{\"type\":\"%s\",\"uuid\":\"%s\",\"name\":\"", type, uuid) != 0)
+            goto fail;
+        if (i_buf_escaped(&b, entry->name) != 0)
+            goto fail;
+        if (i_buf_str(&b, "\",\"issuer\":\"") != 0)
+            goto fail;
+        if (i_buf_escaped(&b, entry->issuer) != 0)
+            goto fail;
+        if (i_buf_appendf(&b,
+                          "\",\"note\":\"\",\"favorite\":false,\"icon\":null,\"info\":"
+                          "{\"secret\":\"%s\",\"algo\":\"%s\",\"digits\":%d,\"period\":%d,\"counter\":%llu}}",
+                          b32, entry->algo, entry->digits, entry->period, entry->counter) != 0)
+            goto fail;
+
+        secure_wipe(b32, sizeof(b32));
+    }
+
+    if (i_buf_str(&b, "]}") != 0)
+        goto fail;
+
+    *out = b;
+    return 0;
+
+fail:
+    i_buf_free(&b);
+    return -1;
+}
+
+/*---------------------------------------------------------------------------*/
+
+/*---------------------------------------------------------------------------*/
+
+int vault_export(const vault_t *vault, const char *path, const char *password,
+                 char *err, size_t errlen)
+{
+    i_buf_t plain = {0, 0, 0};
+    i_buf_t root = {0, 0, 0};
+    FILE *file = NULL;
+    int rc = VAULT_ERROR;
+
+    if (vault == NULL || path == NULL)
+    {
+        i_set_error(err, errlen, "Nothing to export.");
+        return VAULT_ERROR;
+    }
+
+    if (i_entries_json(vault, &plain) != 0)
+    {
+        i_set_error(err, errlen, "Out of memory.");
+        return VAULT_ERROR;
+    }
+
+    if (password == NULL || password[0] == '\0')
+    {
+        if (i_buf_str(&root, "{\"version\":1,\"db\":") != 0 ||
+            i_buf_str(&root, plain.data) != 0 ||
+            i_buf_str(&root, "}") != 0)
+        {
+            i_set_error(err, errlen, "Out of memory.");
+            goto fail;
+        }
+    }
+    else
+    {
+        unsigned char salt[SALT_SIZE];
+        unsigned char master[KEY_SIZE];
+        unsigned char derived[KEY_SIZE];
+        unsigned char enc_master[KEY_SIZE];
+        unsigned char key_nonce[GCM_NONCE_SIZE];
+        unsigned char nonce[GCM_NONCE_SIZE];
+        unsigned char key_tag[GCM_TAG_SIZE];
+        unsigned char db_tag[GCM_TAG_SIZE];
+        unsigned char slot_uuid[16];
+        unsigned char *db_ct = NULL;
+        char *b64 = NULL;
+        size_t b64_len;
+        char salt_hex[65], key_hex[65], slot_uuid_hex[33];
+        char key_nonce_hex[25], key_tag_hex[33], nonce_hex[25], tag_hex[33];
+        uint64_t maxmem = 128ull * 32768ull * 8ull + (1ull << 20);
+
+        memset(salt, 0, sizeof(salt));
+        memset(master, 0, sizeof(master));
+        memset(derived, 0, sizeof(derived));
+        memset(enc_master, 0, sizeof(enc_master));
+
+        if (RAND_bytes(salt, sizeof(salt)) != 1 ||
+            RAND_bytes(master, sizeof(master)) != 1 ||
+            RAND_bytes(key_nonce, sizeof(key_nonce)) != 1 ||
+            RAND_bytes(nonce, sizeof(nonce)) != 1 ||
+            RAND_bytes(slot_uuid, sizeof(slot_uuid)) != 1)
+        {
+            i_set_error(err, errlen, "Could not generate random data for the export.");
+            goto cleanup_keys;
+        }
+
+        if (EVP_PBE_scrypt(password, strlen(password), salt, sizeof(salt),
+                           32768, 8, 1, maxmem, derived, sizeof(derived)) != 1)
+        {
+            i_set_error(err, errlen, "Could not derive the export key (scrypt failed).");
+            goto cleanup_keys;
+        }
+
+        if (i_gcm_encrypt(derived, key_nonce, sizeof(key_nonce), master, sizeof(master),
+                          enc_master, key_tag) != 0)
+        {
+            i_set_error(err, errlen, "Could not seal the master key.");
+            goto cleanup_keys;
+        }
+
+        db_ct = (unsigned char *)malloc(plain.len > 0 ? plain.len : 1);
+        if (db_ct == NULL)
+        {
+            i_set_error(err, errlen, "Out of memory.");
+            goto cleanup_keys;
+        }
+
+        if (i_gcm_encrypt(master, nonce, sizeof(nonce), (const unsigned char *)plain.data,
+                          plain.len, db_ct, db_tag) != 0)
+        {
+            i_set_error(err, errlen, "Could not encrypt the export.");
+            goto cleanup_keys;
+        }
+
+        b64_len = ((plain.len + 2) / 3) * 4 + 1;
+        b64 = (char *)malloc(b64_len);
+        if (b64 == NULL)
+        {
+            i_set_error(err, errlen, "Out of memory.");
+            goto cleanup_keys;
+        }
+
+        if (base64_encode(b64, db_ct, plain.len) != 0)
+        {
+            i_set_error(err, errlen, "Out of memory.");
+            goto cleanup_keys;
+        }
+
+        hex_encode(salt_hex, salt, sizeof(salt));
+        hex_encode(key_hex, enc_master, sizeof(enc_master));
+        hex_encode(slot_uuid_hex, slot_uuid, sizeof(slot_uuid));
+        hex_encode(key_nonce_hex, key_nonce, sizeof(key_nonce));
+        hex_encode(key_tag_hex, key_tag, sizeof(key_tag));
+        hex_encode(nonce_hex, nonce, sizeof(nonce));
+        hex_encode(tag_hex, db_tag, sizeof(db_tag));
+
+        if (i_buf_appendf(&root,
+                          "{\"version\":1,\"header\":{\"protocolVersion\":2,\"slots\":[{\"type\":1,"
+                          "\"uuid\":\"%s\",\"n\":32768,\"r\":8,\"p\":1,\"salt\":\"%s\","
+                          "\"key\":\"%s\",\"key_params\":{\"nonce\":\"%s\",\"tag\":\"%s\"}}],"
+                          "\"params\":{\"nonce\":\"%s\",\"tag\":\"%s\"}},\"db\":\"%s\"}",
+                          slot_uuid_hex, salt_hex, key_hex, key_nonce_hex, key_tag_hex,
+                          nonce_hex, tag_hex, b64) != 0)
+        {
+            i_set_error(err, errlen, "Out of memory.");
+            goto cleanup_keys;
+        }
+
+        secure_wipe(derived, sizeof(derived));
+        secure_wipe(master, sizeof(master));
+        secure_wipe(enc_master, sizeof(enc_master));
+        secure_wipe(db_ct, plain.len);
+        free(db_ct);
+        free(b64);
+        goto write_file;
+
+cleanup_keys:
+        secure_wipe(derived, sizeof(derived));
+        secure_wipe(master, sizeof(master));
+        secure_wipe(enc_master, sizeof(enc_master));
+
+        if (db_ct != NULL)
+        {
+            secure_wipe(db_ct, plain.len);
+            free(db_ct);
+        }
+
+        free(b64);
+        goto fail;
+    }
+
+write_file:
+    {
+        char *tmp = (char *)malloc(strlen(path) + 5);
+
+        if (tmp == NULL)
+        {
+            i_set_error(err, errlen, "Out of memory.");
+            goto fail;
+        }
+
+        strcpy(tmp, path);
+        strcat(tmp, ".tmp");
+        file = fopen(tmp, "wb");
+
+        if (file == NULL)
+        {
+            free(tmp);
+            i_set_error(err, errlen, "Cannot write the export file.");
+            goto fail;
+        }
+
+        if (fwrite(root.data, 1, root.len, file) != root.len)
+        {
+            fclose(file);
+            file = NULL;
+            remove(tmp);
+            free(tmp);
+            i_set_error(err, errlen, "Cannot write the export file.");
+            goto fail;
+        }
+
+        fclose(file);
+        file = NULL;
+
+#if defined(_WIN32)
+        remove(path);
+        if (rename(tmp, path) != 0)
+        {
+            remove(tmp);
+            free(tmp);
+            i_set_error(err, errlen, "Cannot replace the export file.");
+            goto fail;
+        }
+#else
+        if (rename(tmp, path) != 0)
+        {
+            remove(tmp);
+            free(tmp);
+            i_set_error(err, errlen, "Cannot replace the export file.");
+            goto fail;
+        }
+#endif
+
+        free(tmp);
+    }
+
+#if !defined(_WIN32)
+    chmod(path, 0600);
+#endif
+
+    rc = VAULT_OK;
+
+fail:
+    if (file != NULL)
+        fclose(file);
+    i_buf_free(&plain);
+    i_buf_free(&root);
     return rc;
 }
 

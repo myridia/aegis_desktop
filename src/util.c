@@ -182,6 +182,87 @@ int hex_decode_exact(const char *in, unsigned char *out, size_t outlen)
 
 /*---------------------------------------------------------------------------*/
 
+int base64_encode(char *out, const unsigned char *in, size_t inlen)
+{
+    static const char alphabet[] = "ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789+/";
+    size_t i, o = 0;
+    if (out == NULL || in == NULL)
+        return -1;
+    for (i = 0; i < inlen; i += 3)
+    {
+        unsigned v = (unsigned)in[i] << 16;
+        size_t rem = i + 3 <= inlen ? 3 : inlen - i;
+        if (rem > 1) v |= (unsigned)in[i + 1] << 8;
+        if (rem > 2) v |= in[i + 2];
+        out[o++] = alphabet[(v >> 18) & 0x3F];
+        out[o++] = alphabet[(v >> 12) & 0x3F];
+        out[o++] = rem > 1 ? alphabet[(v >> 6) & 0x3F] : '=';
+        out[o++] = rem > 2 ? alphabet[v & 0x3F] : '=';
+    }
+    out[o] = '\0';
+    return 0;
+}
+
+/*---------------------------------------------------------------------------*/
+
+int base32_encode(char *out, size_t outcap, const unsigned char *in, size_t inlen)
+{
+    static const char alphabet[] = "ABCDEFGHIJKLMNOPQRSTUVWXYZ234567";
+    uint32_t acc = 0;
+    int bits = 0;
+    size_t i, o = 0;
+
+    if (out == NULL || in == NULL)
+        return -1;
+
+    for (i = 0; i < inlen; i += 1)
+    {
+        acc = (acc << 8) | in[i];
+        bits += 8;
+        while (bits >= 5)
+        {
+            bits -= 5;
+            if (o + 1 >= outcap)
+                return -1;
+            out[o++] = alphabet[(acc >> bits) & 0x1F];
+            acc &= bits > 0 ? (1u << bits) - 1 : 0;
+        }
+    }
+
+    if (bits > 0)
+    {
+        if (o + 1 >= outcap)
+            return -1;
+        out[o++] = alphabet[(acc << (5 - bits)) & 0x1F];
+    }
+
+    while (o % 8 != 0)
+    {
+        if (o + 1 >= outcap)
+            return -1;
+        out[o++] = '=';
+    }
+
+    out[o] = '\0';
+    return 0;
+}
+
+/*---------------------------------------------------------------------------*/
+
+void hex_encode(char *out, const unsigned char *in, size_t inlen)
+{
+    static const char alphabet[] = "0123456789abcdef";
+    size_t i;
+    for (i = 0; i < inlen; i += 1)
+    {
+        out[i * 2] = alphabet[(in[i] >> 4) & 0x0F];
+        out[i * 2 + 1] = alphabet[in[i] & 0x0F];
+    }
+    out[inlen * 2] = '\0';
+}
+
+/*---------------------------------------------------------------------------*/
+
 void secure_wipe(void *ptr, size_t size)
 {
     volatile unsigned char *p = (volatile unsigned char *)ptr;
