@@ -2,24 +2,41 @@
 
 # Aegis Desktop
 
-A small, read-only desktop viewer for [Aegis Authenticator](https://github.com/beemdevelopment/Aegis)
+A small, desktop viewer for [Aegis Authenticator](https://github.com/beemdevelopment/Aegis)
 exports — macOS, Linux and Windows. It shows TOTP, HOTP and Steam codes, copies them to the
-clipboard and never writes to the vault.
+clipboard; deleting a row rewrites the currently loaded export (see Security model).
 
 Built with [NAppGUI](https://nappgui.com) (C, MIT) and OpenSSL 3 for the crypto.
 
 ## Features
 
-- Opens plain (`"db": { ... }`) and password-encrypted (`"db": "base64..."`)
-  Aegis JSON exports.
+- Imports plain (`"db": { ... }`) and password-encrypted (`"db": "base64..."`)
+  Aegis JSON exports. The export is copied into the app's own storage
+  (`~/.config/aegis_desktop/imported.json` on POSIX,
+  `%APPDATA%\Aegis Desktop\imported.json` on Windows, mode 0600) — the file you
+  picked is opened read-only and never written; all later reads, deletes and
+  rewrites happen against the app's own copy. Re-importing the original pulls
+  everything back again.
 - Supports TOTP (SHA1/SHA256/SHA512, 4-10 digits, custom period), HOTP and
   Steam Guard codes.
 - Live search filter by issuer/account.
-- Remembers the last successfully opened export (`~/.config/aegis_desktop/last_export`,
-  `%APPDATA%\Aegis Desktop\last_export` on Windows) and reopens it automatically on the next start.
+- Remembers the app's imported copy (`~/.config/aegis_desktop/imported.json`,
+  `%APPDATA%\Aegis Desktop\imported.json` on Windows) and re-imports it automatically
+  on the next start (see the first bullet).
+- Exports the vault as an Aegis backup (`File` menu → `Export to Aegis...`):
+  empty password writes an unencrypted Aegis JSON export; any password writes an
+  encrypted one (scrypt + AES-256-GCM) that re-imports into the app and into Aegis.
 - Click a row to copy its current code. `Cmd/Win+N` (⌘N on macOS, Win/Super+N on
   Windows/Linux) advances and copies the next HOTP counter value.
-- `Cmd/Win+O` open, `Cmd/Win+F` filter box, `Cmd/Win+C` copy the selected row.
+- Delete toolbar button permanently removes the selected entry: the row is
+  removed from memory and the app's own imported copy is rewritten without it
+  (a backup `<imported.json>.bak-<timestamp>` is kept beside it first). Your
+  original Aegis export is never written. Encrypted exports ask for the vault
+  password again before saving the deletion.
+- `Cmd/Win+O` import, `Cmd/Win+F` filter box, `Cmd/Win+C` copy the selected row,
+  `Cmd/Win+E` export to Aegis (menu `File` → `Export to Aegis...`), `Del` delete the
+  selected entry (on macOS use fn+Delete — plain Backspace stays available for typing
+  in the filter box).
 - Codes refresh automatically once per second; the `Left` column counts down
   the current time step.
 
@@ -56,13 +73,12 @@ Release assets upload on every run.
 ## Getting a vault out of Aegis
 
 On the phone: **Settings → Import & Export → Export** (plain or encrypted).
-Copy the resulting `.json` file to your computer (AirDrop, USB, scp, …) and open it
+Copy the resulting `.json` file to your computer (AirDrop, USB, scp, …) and import it
 with `Cmd/Win+O`.
 
 ## Security model
 
-- Read-only: the vault file is opened with `fopen(..., "rb")` and never
-  written, renamed or modified.
+- The export you pick is opened read-only and copied into the app's own storage (`imported.json` in the app config dir); only that copy is ever mutated — by `Del`/the Delete button (rewritten with a `.bak-<timestamp>` backup beside it). Your original export is never written. Encrypted exports re-enter the password (verified against the file) before a deletion is saved.
 - No network code is linked or called.
 - Decrypted JSON, derived keys, master key and raw secrets are wiped from
   memory (`secure_wipe`) as soon as they are no longer needed. Secrets live
@@ -84,7 +100,7 @@ with `Cmd/Win+O`.
 build.sh             configure + build + launch (deletes build/ first)
 ask.sh               task switch: 1 Windows / 2 macOS / 3 Linux NAppGUI install, 4 build & run
 src/main.c           NAppGUI entry point (osmain_sync 0.25 s ticker)
-src/gui.c/.h         window, toolbar, table, filter, unlock flow, hotkeys, last-export reopen
+src/gui.c/.h         window, toolbar, table, filter, unlock flow, hotkeys, last-import reload
 src/osx/clipboard.m  macOS NSPasteboard shim
 src/gtk/clipboard.c  Linux (GTK3) clipboard shim
 src/win/clipboard.c  Windows clipboard shim
@@ -99,4 +115,4 @@ src/util.c/.h        base64/base32/hex decoders, secure wipe
 ## Notes
 
 - HOTP counter increments happen in memory only; the export on disk is never
-  updated. Re-open the export to start again from the file's counters.
+  updated. Re-import the export to start again from the file's counters.

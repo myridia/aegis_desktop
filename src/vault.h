@@ -40,8 +40,17 @@ typedef struct
  * 'vault' is only modified on VAULT_OK. Call vault_free() when done.
  */
 int vault_load(const char *path, const char *password, vault_t *vault,
-               char *err, size_t errlen);
+               char *err, size_t errlen, int *encrypted);
 
 void vault_free(vault_t *vault);
+
+/*
+ * Exports the vault as an Aegis Authenticator backup.
+ * password == NULL or "" writes an unencrypted backup ("db" object);
+ * otherwise writes an encrypted backup (scrypt + AES-256-GCM) readable by
+ * vault_load. The file is written with mode 0600 on POSIX systems.
+ */
+int vault_export(const vault_t *vault, const char *path, const char *password,
+                 char *err, size_t errlen);
 
 #endif
